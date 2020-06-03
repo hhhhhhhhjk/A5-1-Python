@@ -207,28 +207,3 @@ class A5:
             return self.encrypt(data)
         else:
             return self.encrypt_int(data)
-
-# 测试程序
-if __name__ == '__main__':
-    
-    a5 = A5('UESTC123')
-    
-    num = 'University of Electronic Science and Technology of China\nSchool of Information and Software Engineering'
-    
-    num_en = a5.encrypt(num)
-    num_de = a5.decrypt(num_en, str)
-    
-    print("num: \n" +num)
-    print("\nencrypted: ")
-    print(num_en)
-    print("\ndecrypted: \n" + num_de)
-
-#     # # 加密一个整数
-#     # print(1234567890)
-#     # print(a5.encrypt_int(1234567890))
-#     # print(a5.decrypt(a5.encrypt_int(1234567890), int))
-
-#     # # 加密一个字符串
-#     # print('1234567890')
-#     # print(a5.encrypt('1234567890'))
-#     # print(a5.decrypt(a5.encrypt('1234567890'), str))
