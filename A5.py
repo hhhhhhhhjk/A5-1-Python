@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
-# @Time    : 2020-05-09
+# # -*- coding: utf-8 -*-
+# # @Time    : 2020-05-09
 import re
 
 class A5:
@@ -10,10 +10,14 @@ class A5:
     类成员：
         origin_key: 一个字符串，用于存储64位初始密钥
         keystream: 一个字符串，用于存储在加/解密时实时生成的密钥流。每次加密/解密均会更新该成员
+        lfsr_1, lfsr_2, lfsr_3: 三个LFSR
     '''
 
     origin_key = ''
     keystream = ''
+    lfsr_1 = '0' * 19
+    lfsr_2 = '0' * 22
+    lfsr_3 = '0' * 23
 
     def __init__(self, key):
         '''
@@ -37,6 +41,29 @@ class A5:
                 raise Exception("Key length error")
             for each in key:
                 self.origin_key += bin(each)[2:].zfill(8)
+        self.initial_lfsr()
+
+    def initial_lfsr(self):
+        '''
+        利用初始密钥对3个LFSR进行初始化。
+        '''
+        
+        for each in self.origin_key:
+            self.lfsr_1 = str(int(each) ^ int(self.__shift(self.lfsr_1, 1))) + self.lfsr_1[:-1]
+            self.lfsr_2 = str(int(each) ^ int(self.__shift(self.lfsr_2, 2))) + self.lfsr_2[:-1]
+            self.lfsr_3 = str(int(each) ^ int(self.__shift(self.lfsr_3, 3))) + self.lfsr_3[:-1]
+        
+        for i in range(100):
+            if int(self.lfsr_1[8])+int(self.lfsr_2[10])+int(self.lfsr_3[10]) >= 2:
+                shift_bit = '1'
+            else:
+                shift_bit = '0'
+            if self.lfsr_1[8] == shift_bit:
+                self.lfsr_1 = self.__shift(self.lfsr_1, 1) + self.lfsr_1[:-1]
+            elif self.lfsr_2[10] == shift_bit:
+                self.lfsr_2 = self.__shift(self.lfsr_2, 2) + self.lfsr_2[:-1]
+            elif self.lfsr_3[10] == shift_bit:
+                self.lfsr_3 = self.__shift(self.lfsr_3, 3) + self.lfsr_3[:-1]
 
     def __shift(self, lfsr, num):
         '''
@@ -61,7 +88,7 @@ class A5:
         if num == 3:
             new_bin = str(int(lfsr[7]) ^ int(lfsr[20]) ^ int(lfsr[21]) ^ int(lfsr[22]))
         
-        return new_bin + lfsr[:-1]
+        return new_bin
 
     def generate_keystream(self, length):
         '''
@@ -74,31 +101,28 @@ class A5:
             str, 生成的密钥流
         '''
         
-        lfsr_1 = self.origin_key[:19]
-        lfsr_2 = self.origin_key[19:41]
-        lfsr_3 = self.origin_key[41:]
+        lfsr_1 = self.lfsr_1
+        lfsr_2 = self.lfsr_2
+        lfsr_3 = self.lfsr_3
         keystream_tmp = ''
 
-        print("[*] Generating keystream")
         for i in range(length):
             # 生成密钥流下一位
             keystream_tmp += str(int(lfsr_1[-1]) ^ int(lfsr_2[-1]) ^ int(lfsr_3[-1]))
 
-            # 根据择多原则判断是否需要移位， 参考：https://blog.csdn.net/jerry81333/article/details/78641362
+            # 根据择多原则判断是否需要移位
             if int(lfsr_1[8])+int(lfsr_2[10])+int(lfsr_3[10]) >= 2:
                 shift_bit = '1'
             else:
                 shift_bit = '0'
-
             if lfsr_1[8] == shift_bit:
-                lfsr_1 = self.__shift(lfsr_1, 1)
+                lfsr_1 = self.__shift(lfsr_1, 1) + lfsr_1[:-1]
             elif lfsr_2[10] == shift_bit:
-                lfsr_2 = self.__shift(lfsr_2, 2)
+                lfsr_2 = self.__shift(lfsr_2, 2) + lfsr_2[:-1]
             elif lfsr_3[10] == shift_bit:
-                lfsr_3 = self.__shift(lfsr_3, 3)
+                lfsr_3 = self.__shift(lfsr_3, 3) + lfsr_3[:-1]
         
         self.keystream = keystream_tmp
-        print("[*] Keystream generated")
         return keystream_tmp
 
     def get_orig_key(self):
@@ -123,14 +147,11 @@ class A5:
         返回值：
             bytes, 被加密后的数据
         '''
-        
-        print("[*] Start encrypting/decrypting")
-        
+                
         tmp_data = []
         if type(data) != str and type(data) != bytes:
             raise TypeError(
                 "Input type error, only supports 'str' and 'bytes' object")
-        print("[*] Data length %d bytes" % len(data))
         self.generate_keystream(len(data) * 8)   # 按输入数据长度生成密钥流
         
         # 密钥流按字节分割
@@ -144,7 +165,6 @@ class A5:
             for i in range(len(data)):
                 tmp_data.append(ord(data[i]) ^ key_list[i])
                 
-        print("[*] Encrypted/Decrypted")
         return bytes(tmp_data)
 
     def encrypt_int(self, data):
@@ -158,13 +178,11 @@ class A5:
             int, 加密后的数据
         '''
         
-        print("[*] Start encrypting/decrypting")
         if type(data) != int:
             raise TypeError(
                 "Input type error, only supports 'int' object")
         self.generate_keystream(len(bin(data)) - 2)
         
-        print("[*] Encrypted/Decrypted")
         return data ^ int('0b'+self.keystream, 2)
 
     def decrypt(self, data, data_type):
@@ -189,3 +207,28 @@ class A5:
             return self.encrypt(data)
         else:
             return self.encrypt_int(data)
+
+# 测试程序
+if __name__ == '__main__':
+    
+    a5 = A5('UESTC123')
+    
+    num = 'University of Electronic Science and Technology of China\nSchool of Information and Software Engineering'
+    
+    num_en = a5.encrypt(num)
+    num_de = a5.decrypt(num_en, str)
+    
+    print("num: \n" +num)
+    print("\nencrypted: ")
+    print(num_en)
+    print("\ndecrypted: \n" + num_de)
+
+#     # # 加密一个整数
+#     # print(1234567890)
+#     # print(a5.encrypt_int(1234567890))
+#     # print(a5.decrypt(a5.encrypt_int(1234567890), int))
+
+#     # # 加密一个字符串
+#     # print('1234567890')
+#     # print(a5.encrypt('1234567890'))
+#     # print(a5.decrypt(a5.encrypt('1234567890'), str))
